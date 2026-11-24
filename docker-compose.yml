@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nexus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_local_password}
+      POSTGRES_DB: ${POSTGRES_DB:-nexusos}
+    volumes:
+      - nexus_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexus} -d ${POSTGRES_DB:-nexusos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    env_file:
+      - ./backend/.env
+    build: ./backend
+    restart: unless-stopped
+    
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nexus}:${POSTGRES_PASSWORD:-nexus_local_password}@db:5432/${POSTGRES_DB:-nexusos}
+      CLIENT_ORIGIN: http://localhost:5173
+    ports:
+      - "5001:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:5001/api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  nexus_data:

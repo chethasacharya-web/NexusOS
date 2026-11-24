@@ -1,0 +1,61 @@
+name: NexusOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build React frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Build Docker images
+        run: |
+          docker build -t nexusos-backend ./backend
+          docker build -t nexusos-frontend ./frontend
+
+  # OPTIONAL CD:
+  # Once you have deployed the app to an Ubuntu EC2 instance, configure
+  # EC2_HOST, EC2_USER and EC2_SSH_KEY in GitHub repository secrets.
+  # Uncomment this job and make sure /opt/nexusos exists on the instance.
+  #
+  # deploy:
+  #   needs: test-and-build
+  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Deploy to EC2
+  #       uses: appleboy/ssh-action@v1.2.0
+  #       with:
+  #         host: ${{ secrets.EC2_HOST }}
+  #         username: ${{ secrets.EC2_USER }}
+  #         key: ${{ secrets.EC2_SSH_KEY }}
+  #         script: |
+  #           cd /opt/nexusos
+  #           git pull origin main
+  #           docker compose up -d --build
